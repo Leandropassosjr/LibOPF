@@ -3,6 +3,7 @@
 int main(int argc, char **argv)
 {
 	int i, n, op;
+	int amount_supervised_labels = 0;
 	float value;
 	char fileName[256];
 	FILE *f = NULL;
@@ -27,8 +28,14 @@ int main(int argc, char **argv)
 
 	if (argc == 6)
 		opf_PrecomputedDistance = 1;
-	fprintf(stdout, "\nReading data file ...");
+	
+	fprintf(stdout, "\nReading data file ...\n");
 	Subgraph *g = ReadSubgraph(argv[1]);
+
+	// this field is going to be overwritten during the computation of the optimal clusters
+	amount_supervised_labels = g->nlabels;
+	fprintf(stdout, "Amount of ground truth labels: %d\n", amount_supervised_labels);
+
 
 	if (opf_PrecomputedDistance)
 	{
@@ -84,7 +91,7 @@ int main(int argc, char **argv)
 	   classifier, which essentially can propagate the cluster
 	   labels to new nodes in a testing set. */
 
-	/*if (g->node[0].truelabel!=0){ // labeled training set
+	if (amount_supervised_labels != 0){ // labeled training set
 	  g->nlabels = 0;
 	  for (i = 0; i < g->nnodes; i++){//propagating root labels
 	    if (g->node[i].root==i)
@@ -101,7 +108,7 @@ int main(int argc, char **argv)
 	}else{ // unlabeled training set
 	  for (i = 0; i < g->nnodes; i++)
 	    g->node[i].truelabel = g->node[i].label+1;
-	}*/
+	}
 
 	fprintf(stdout, "\nWriting classifier's model file ...");
 	fflush(stdout);
