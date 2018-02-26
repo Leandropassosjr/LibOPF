@@ -11,7 +11,7 @@ FLAGS=  -O3 -Wall
 
 INCFLAGS = -I$(INCLUDE) -I$(INCLUDE)/$(UTIL)
 
-all: libOPF opf_split opf_accuracy opf_accuracy4label opf_train opf_classify opf_learn opf_distance opf_info opf_fold opf_merge opf_cluster opf_pruning statistics txt2opf opf2txt opf_check opf_normalize opfknn_train opfknn_classify opf2svm svm2opf kmeans
+all: libOPF opf_split opf_accuracy opf_accuracy4label opf_train opf_classify opf_learn opf_distance opf_info opf_fold opf_merge opf_cluster opf_pruning statistics txt2opf opf2txt opf_check opf_normalize opfknn_train opfknn_classify opf2svm svm2opf kmeans opf2dist
 
 libOPF: libOPF-build
 	echo "libOPF.a built..."
@@ -86,6 +86,9 @@ svm2opf: libOPF
 
 kmeans: libOPF
 	$(CC) $(FLAGS) $(INCFLAGS) tools/src/kmeans.c  -L./lib -o tools/kmeans -lOPF -lm
+
+opf2dist: libOPF
+	$(CC) $(FLAGS) $(INCFLAGS) tools/src/opf2dist.c  -o tools/opf2dist
 
 opf_normalize: libOPF
 	$(CC) $(FLAGS) $(INCFLAGS) src/opf_normalize.c  -L./lib -o bin/opf_normalize -lOPF -lm
