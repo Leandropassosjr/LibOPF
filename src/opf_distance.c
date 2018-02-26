@@ -24,6 +24,7 @@ int main(int argc, char **argv)
 		fprintf(stderr, "\n	5 - Squared Chord");
 		fprintf(stderr, "\n	6 - Squared Chi-Squared");
 		fprintf(stderr, "\n	7 - BrayCurtis");
+		fprintf(stderr, "\n	8 - LogEuclidean");
 		fprintf(stderr, "\nP3: Distance normalization? 1- yes 0 - no");
 		exit(-1);
 	}
@@ -141,6 +142,21 @@ int main(int argc, char **argv)
 					Distances[i][j] = 0.0;
 				else
 					Distances[sg->node[i].position][sg->node[j].position] = opf_BrayCurtisDist(sg->node[i].feat, sg->node[j].feat, sg->nfeats);
+				if (Distances[sg->node[i].position][sg->node[j].position] > max)
+					max = Distances[sg->node[i].position][sg->node[j].position];
+			}
+		}
+		break;
+	case 8:
+		fprintf(stdout, "\n	Computing LogEuclidean distance ...\n");
+		for (i = 0; i < sg->nnodes; i++)
+		{
+			for (j = 0; j < sg->nnodes; j++)
+			{
+				if (i == j)
+					Distances[i][j] = 0.0;
+				else
+					Distances[sg->node[i].position][sg->node[j].position] = opf_EuclDistLog(sg->node[i].feat, sg->node[j].feat, sg->nfeats);
 				if (Distances[sg->node[i].position][sg->node[j].position] > max)
 					max = Distances[sg->node[i].position][sg->node[j].position];
 			}

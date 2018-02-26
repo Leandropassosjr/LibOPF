@@ -28,7 +28,8 @@
 char opf_PrecomputedDistance;
 float **opf_DistanceValue;
 
-opf_ArcWeightFun opf_ArcWeight = opf_EuclDistLog;
+/*This is the hardcoded metric used to compute the distance between samples.*/
+opf_ArcWeightFun opf_ArcWeight = opf_EuclDist;
 
 /*--------- Supervised OPF -------------------------------------*/
 //Training function -----

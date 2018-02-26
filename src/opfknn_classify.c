@@ -11,25 +11,37 @@ int main(int argc, char **argv)
 	fprintf(stdout, "\n");
 	fflush(stdout);
 
-	if ((argc != 3) && (argc != 2))
+	if ((argc > 4) || (argc < 2))
 	{
 		fprintf(stderr, "\nusage opfknn_classify <P1> <P2>");
 		fprintf(stderr, "\nP1: test set in the OPF file format");
-		fprintf(stderr, "\nP2: precomputed distance file (leave it in blank if you are not using this resource\n");
+		fprintf(stderr, "\nP2: precomputed distance file (leave it in blank or use X if you are not using this resource)\n");
+		fprintf(stderr, "\nP3: classifier name (leve it in blank to use classifier.opf");
 		exit(-1);
 	}
 
 	int n, i;
 	float time;
+	char classifierName[256];
 	char fileName[256];
 	FILE *f = NULL;
 	timer tic, toc;
 
-	if (argc == 3)
+	if (argc >= 3 && strcmp(argv[2], "X") != 0)
 		opf_PrecomputedDistance = 1;
+
+	if (argc == 4)
+		sprintf(classifierName, "%s", argv[3]);
+	else
+		sprintf(classifierName, "classifier.opf");
+
+
+
+
 	fprintf(stdout, "\nReading data files ...");
 	fflush(stdout);
-	Subgraph *gTest = ReadSubgraph(argv[1]), *gTrain = opf_ReadModelFile("classifier.opf");
+	Subgraph *gTest = ReadSubgraph(argv[1]);
+	Subgraph *gTrain = opf_ReadModelFile(classifierName);
 	fprintf(stdout, " OK");
 	fflush(stdout);
 

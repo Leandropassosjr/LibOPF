@@ -6,6 +6,8 @@ int main(int argc, char **argv)
 	int amount_supervised_labels = 0;
 	float value;
 	char fileName[256];
+	char classifierName[256];
+
 	FILE *f = NULL;
 
 	fprintf(stdout, "\nProgram that computes clusters by OPF\n");
@@ -15,18 +17,24 @@ int main(int argc, char **argv)
 	fprintf(stdout, "\nLibOPF version 2.0 (2009)\n");
 	fprintf(stdout, "\n");
 
-	if ((argc != 6) && (argc != 5))
+	if ((argc > 7) || (argc < 5))
 	{
 		fprintf(stderr, "\nusage opf_cluster <P1> <P2> <P3> <P4> <P5> <P6>");
 		fprintf(stderr, "\nP1: unlabeled data set in the OPF file format");
 		fprintf(stderr, "\nP2: kmax(maximum degree for the knn graph)");
 		fprintf(stderr, "\nP3: P3 0 (height), 1(area) and 2(volume)");
 		fprintf(stderr, "\nP4: value of parameter P3 in (0-1)");
-		fprintf(stderr, "\nP5: precomputed distance file (leave it in blank if you are not using this resource");
+		fprintf(stderr, "\nP5: precomputed distance file (leave it in blank or use X if you are not using this resource)");
+		fprintf(stderr, "\nP6: classifier output name (leave it in blank if you are not using this resource)");
 		exit(-1);
 	}
 
-	if (argc == 6)
+	if (argc == 7)
+		sprintf(classifierName, "%s", argv[6]);
+	else
+		sprintf(classifierName, "classifier.opf");
+
+	if (argc >= 6 && strcmp(argv[5], "X") != 0)
 		opf_PrecomputedDistance = 1;
 	
 	fprintf(stdout, "\nReading data file ...\n");
@@ -80,7 +88,7 @@ int main(int argc, char **argv)
 
 	fprintf(stdout, "\n\nClustering by OPF ");
 	opf_OPFClustering(g);
-	printf("num of clusters %d\n", g->nlabels);
+	fprintf(stderr, "\nnumber of clusters found: %d\n", g->nlabels);
 
 	/* If the training set has true labels, then create a
 	   classifier by propagating the true label of each root to
@@ -112,7 +120,8 @@ int main(int argc, char **argv)
 
 	fprintf(stdout, "\nWriting classifier's model file ...");
 	fflush(stdout);
-	opf_WriteModelFile(g, "classifier.opf");
+	// opf_WriteModelFile(g, "classifier.opf");
+	opf_WriteModelFile(g, classifierName);
 	fprintf(stdout, " OK");
 	fflush(stdout);
 
