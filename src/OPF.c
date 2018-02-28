@@ -2101,7 +2101,7 @@ float opf_EuclDist(float *f1, float *f2, int n)
   for (i = 0; i < n; i++)
     dist += (f1[i] - f2[i]) * (f1[i] - f2[i]);
 
-  return (dist);
+  return sqrt(dist);
 }
 
 // Discretizes original distance
