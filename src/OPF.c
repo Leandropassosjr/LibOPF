@@ -28,7 +28,8 @@
 char opf_PrecomputedDistance;
 float **opf_DistanceValue;
 
-opf_ArcWeightFun opf_ArcWeight = opf_EuclDistLog;
+/*This is the hardcoded metric used to compute the distance between samples.*/
+opf_ArcWeightFun opf_ArcWeight = opf_EuclDist;
 
 /*--------- Supervised OPF -------------------------------------*/
 //Training function -----
@@ -1433,12 +1434,15 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
   int *nelems = AllocIntArray(sg->nlabels + 1), totelems;
   srandom((int)time(NULL));
 
+  // computing the label frequency for hhe original dataset
   for (i = 0; i < sg->nnodes; i++)
   {
     sg->node[i].status = 0;
     label[sg->node[i].truelabel]++;
   }
 
+  // the amount of elements on the new graph should be
+  // MAX(percentual * label_frequency, 1)
   for (i = 0; i < sg->nnodes; i++)
   {
     nelems[sg->node[i].truelabel] = MAX((int)(perc1 * label[sg->node[i].truelabel]), 1);
@@ -1446,15 +1450,19 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
 
   free(label);
 
+  // computing the total amount of elements that the new graph will contain
   totelems = 0;
   for (j = 1; j <= sg->nlabels; j++)
     totelems += nelems[j];
 
+  // sg1 is the new graph
+  // sg2 will contain the remaining samples from the current graph
   *sg1 = CreateSubgraph(totelems);
   *sg2 = CreateSubgraph(sg->nnodes - totelems);
   (*sg1)->nfeats = sg->nfeats;
   (*sg2)->nfeats = sg->nfeats;
 
+  // making room for the features
   for (i1 = 0; i1 < (*sg1)->nnodes; i1++)
     (*sg1)->node[i1].feat = AllocFloatArray((*sg1)->nfeats);
   for (i2 = 0; i2 < (*sg2)->nnodes; i2++)
@@ -1463,10 +1471,14 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
   (*sg1)->nlabels = sg->nlabels;
   (*sg2)->nlabels = sg->nlabels;
 
+  // creating the new (sg1) graph.
   i1 = 0;
   while (totelems > 0)
   {
     i = RandomInteger(0, sg->nnodes - 1);
+
+    // for every sample not taken and with class not yet full on the new graph,
+    // move it
     if (sg->node[i].status != NIL)
     {
       if (nelems[sg->node[i].truelabel] > 0)
@@ -1483,6 +1495,7 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
     }
   }
 
+  // the other samples on the original graph are moved to the remaining graph.
   i2 = 0;
   for (i = 0; i < sg->nnodes; i++)
   {
@@ -1498,6 +1511,58 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
 
   free(nelems);
 }
+
+// moves a contiguous <amoung_samples> from <*origin> to <**destination>, the
+// remaining samples are moved to <**remaining>.
+void opf_SplitSubgraphHard(Subgraph *origin, Subgraph **destination,
+		Subgraph **remaining, int amount_samples)
+{
+	int i, j, free_index;
+	int amount_features = origin->nfeats;
+
+	*destination = CreateSubgraph(amount_samples);
+	*remaining   = CreateSubgraph(origin->nnodes - amount_samples);
+
+	(*destination)->nfeats = amount_features;
+	(*remaining)->nfeats   = amount_features;
+
+	// making room for the features on destination and remaining graphs
+	for (i = 0; i < (*destination)->nnodes; i++)
+	  (*destination)->node[i].feat = AllocFloatArray(amount_features);
+
+	for (i = 0; i < (*remaining)->nnodes; i++)
+	  (*remaining)->node[i].feat = AllocFloatArray(amount_features);
+
+	(*destination)->nlabels = origin->nlabels;
+	(*remaining)->nlabels = origin->nlabels;
+
+	// moving samples from origin to the destination graph
+	free_index = 0;
+	for (i = 0; i < amount_samples; i++)
+	{
+	  (*destination)->node[free_index].position = origin->node[i].position;
+	  (*destination)->node[free_index].truelabel = origin->node[i].truelabel;
+	  for (j = 0; j < amount_features; j++)
+	    (*destination)->node[free_index].feat[j] = origin->node[i].feat[j];
+
+	  free_index++;
+	}
+
+	// moving remaining samples from origin to remaining graph
+	free_index = 0;
+	for (i = amount_samples; i < origin->nnodes; i++)
+	{
+	  (*remaining)->node[free_index].position = origin->node[i].position;
+	  (*remaining)->node[free_index].truelabel = origin->node[i].truelabel;
+
+	  for (j = 0; j < amount_features; j++)
+	    (*remaining)->node[free_index].feat[j] = origin->node[i].feat[j];
+
+	  free_index++;
+	}
+}
+
+
 
 //Merge two subgraphs
 Subgraph *opf_MergeSubgraph(Subgraph *sg1, Subgraph *sg2)
@@ -2100,7 +2165,7 @@ float opf_EuclDist(float *f1, float *f2, int n)
   for (i = 0; i < n; i++)
     dist += (f1[i] - f2[i]) * (f1[i] - f2[i]);
 
-  return (dist);
+  return sqrt(dist);
 }
 
 // Discretizes original distance
