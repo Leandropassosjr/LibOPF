@@ -6,12 +6,13 @@ UTIL=util
 
 CC=gcc
 
-FLAGS=  -O3 -Wall
+# FLAGS=  -O3 -Wall
+FLAGS=  -g -Wall
 
 
 INCFLAGS = -I$(INCLUDE) -I$(INCLUDE)/$(UTIL)
 
-all: libOPF opf_split opf_accuracy opf_accuracy4label opf_train opf_classify opf_learn opf_distance opf_info opf_fold opf_merge opf_cluster opf_pruning statistics txt2opf opf2txt opf_check opf_normalize opfknn_train opfknn_classify opf2svm svm2opf kmeans opf2dist
+all: libOPF opf_split opf_split_hard opf_accuracy opf_accuracy4label opf_train opf_classify opf_learn opf_distance opf_info opf_fold opf_merge opf_cluster opf_pruning statistics txt2opf opf2txt opf_check opf_normalize opfknn_train opfknn_classify opf2svm svm2opf kmeans opf2dist
 
 libOPF: libOPF-build
 	echo "libOPF.a built..."
@@ -35,6 +36,9 @@ $(OBJ)/OPF.o: $(SRC)/OPF.c
 
 opf_split: libOPF
 	$(CC) $(FLAGS) $(INCFLAGS) src/opf_split.c  -L./lib -o bin/opf_split -lOPF -lm
+	
+opf_split_hard: libOPF
+	$(CC) $(FLAGS) $(INCFLAGS) src/opf_split_hard.c  -L./lib -o bin/opf_split_hard -lOPF -lm
 
 opf_accuracy: libOPF
 	$(CC) $(FLAGS) $(INCFLAGS) src/opf_accuracy.c  -L./lib -o bin/opf_accuracy -lOPF -lm

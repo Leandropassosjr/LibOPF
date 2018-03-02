@@ -66,6 +66,7 @@ void opf_NormalizeFeatures(Subgraph *sg); //normalize features
 void opf_MSTPrototypes(Subgraph *sg); //Find prototypes by the MST approach
 Subgraph **opf_kFoldSubgraph(Subgraph *sg, int k); //It creates k folds for cross validation
 void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1); //Split subgraph into two parts such that the size of the first part  is given by a percentual of samples.
+void opf_SplitSubgraphHard(Subgraph *origin, Subgraph **destination, Subgraph **remaining, int amount_samples); //Split subgraph into two parts such that the size of the first part is given by a sequential row count of samples.
 Subgraph *opf_MergeSubgraph(Subgraph *sg1, Subgraph *sg2); //Merge two subgraphs
 float opf_Accuracy(Subgraph *g); //Compute accuracy
 float *opf_Accuracy4Label(Subgraph *sg); // Compute accuracy for each class and it outputs an array with the values

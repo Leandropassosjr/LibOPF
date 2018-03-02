@@ -52,8 +52,12 @@ int main(int argc, char **argv)
 
 	fprintf(stdout, "\nSplitting data set ...");
 	fflush(stdout);
+
+	// gAux contains all samples from the training + evaluation set togheter
+	// gTesting is the subGraph with the samples used for testing
 	opf_SplitSubgraph(g, &gAux, &gTesting, training_p + evaluating_p);
 
+	// if evaluatino was specified, gAux is further divided into gTraining and gEvaluation
 	if (evaluating_p > 0)
 		opf_SplitSubgraph(gAux, &gTraining, &gEvaluating, training_p / (training_p + evaluating_p));
 	else
