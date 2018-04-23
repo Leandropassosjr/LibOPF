@@ -3,6 +3,7 @@
 int main(int argc, char **argv)
 {
 	int i, n, op;
+	int kmin, kmax;
 	int amount_supervised_labels = 0;
 	float value;
 	char fileName[256];
@@ -19,14 +20,15 @@ int main(int argc, char **argv)
 	{
 		fprintf(stderr, "\nusage opf_cluster <P1> <P2> <P3> <P4> <P5> <P6>");
 		fprintf(stderr, "\nP1: unlabeled data set in the OPF file format");
-		fprintf(stderr, "\nP2: kmax(maximum degree for the knn graph)");
-		fprintf(stderr, "\nP3: P3 0 (height), 1(area) and 2(volume)");
-		fprintf(stderr, "\nP4: value of parameter P3 in (0-1)");
-		fprintf(stderr, "\nP5: precomputed distance file (leave it in blank if you are not using this resource");
+		fprintf(stderr, "\nP2: kmin(minimum degree for the knn graph)");
+		fprintf(stderr, "\nP3: kmax(maximum degree for the knn graph)");
+		fprintf(stderr, "\nP4: P3 0 (height), 1(area) and 2(volume)");
+		fprintf(stderr, "\nP5: value of parameter P3 in (0-1)");
+		fprintf(stderr, "\nP6: precomputed distance file (leave it in blank if you are not using this resource");
 		exit(-1);
 	}
 
-	if (argc == 6)
+	if (argc == 7)
 		opf_PrecomputedDistance = 1;
 	
 	fprintf(stdout, "\nReading data file ...\n");
@@ -39,14 +41,24 @@ int main(int argc, char **argv)
 
 	if (opf_PrecomputedDistance)
 	{
-		opf_DistanceValue = opf_ReadDistances(argv[5], &n);
+		opf_DistanceValue = opf_ReadDistances(argv[6], &n);
 	}
 
-	op = atoi(argv[3]);
+	op = atoi(argv[4]);
 
-	opf_BestkMinCut(g, 1, atoi(argv[2])); //default kmin = 1
+	kmin = atoi(argv[2]);
+	kmax = atoi(argv[3]);
 
-	value = atof(argv[4]);
+	if (kmin > kmax)
+	{
+		fprintf(stderr, "Kmin must be smaller or equal than Kmax");
+		exit(-1);	
+	}
+
+	fprintf(stdout, "\n Computing k* in the range [%d, %d]\n", kmin, kmax);
+	opf_BestkMinCut(g, atoi(argv[2]), atoi(argv[3])); //default kmin = 1
+
+	value = atof(argv[5]);
 	if ((value < 1) && (value > 0))
 	{
 		fprintf(stdout, "\n\n Filtering clusters ... ");
