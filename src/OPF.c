@@ -28,7 +28,7 @@
 char opf_PrecomputedDistance;
 float **opf_DistanceValue;
 
-/*This is the hardcoded metric used to compute the distance between samples.*/
+// opf_ArcWeightFun opf_ArcWeight = opf_EuclDistLog;
 opf_ArcWeightFun opf_ArcWeight = opf_EuclDist;
 
 /*--------- Supervised OPF -------------------------------------*/
@@ -1434,15 +1434,12 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
   int *nelems = AllocIntArray(sg->nlabels + 1), totelems;
   srandom((int)time(NULL));
 
-  // computing the label frequency for hhe original dataset
   for (i = 0; i < sg->nnodes; i++)
   {
     sg->node[i].status = 0;
     label[sg->node[i].truelabel]++;
   }
 
-  // the amount of elements on the new graph should be
-  // MAX(percentual * label_frequency, 1)
   for (i = 0; i < sg->nnodes; i++)
   {
     nelems[sg->node[i].truelabel] = MAX((int)(perc1 * label[sg->node[i].truelabel]), 1);
@@ -1450,19 +1447,15 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
 
   free(label);
 
-  // computing the total amount of elements that the new graph will contain
   totelems = 0;
   for (j = 1; j <= sg->nlabels; j++)
     totelems += nelems[j];
 
-  // sg1 is the new graph
-  // sg2 will contain the remaining samples from the current graph
   *sg1 = CreateSubgraph(totelems);
   *sg2 = CreateSubgraph(sg->nnodes - totelems);
   (*sg1)->nfeats = sg->nfeats;
   (*sg2)->nfeats = sg->nfeats;
 
-  // making room for the features
   for (i1 = 0; i1 < (*sg1)->nnodes; i1++)
     (*sg1)->node[i1].feat = AllocFloatArray((*sg1)->nfeats);
   for (i2 = 0; i2 < (*sg2)->nnodes; i2++)
@@ -1471,14 +1464,10 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
   (*sg1)->nlabels = sg->nlabels;
   (*sg2)->nlabels = sg->nlabels;
 
-  // creating the new (sg1) graph.
   i1 = 0;
   while (totelems > 0)
   {
     i = RandomInteger(0, sg->nnodes - 1);
-
-    // for every sample not taken and with class not yet full on the new graph,
-    // move it
     if (sg->node[i].status != NIL)
     {
       if (nelems[sg->node[i].truelabel] > 0)
@@ -1495,7 +1484,6 @@ void opf_SplitSubgraph(Subgraph *sg, Subgraph **sg1, Subgraph **sg2, float perc1
     }
   }
 
-  // the other samples on the original graph are moved to the remaining graph.
   i2 = 0;
   for (i = 0; i < sg->nnodes; i++)
   {
@@ -1561,8 +1549,6 @@ void opf_SplitSubgraphHard(Subgraph *origin, Subgraph **destination,
 	  free_index++;
 	}
 }
-
-
 
 //Merge two subgraphs
 Subgraph *opf_MergeSubgraph(Subgraph *sg1, Subgraph *sg2)
@@ -1823,7 +1809,7 @@ float opf_NormalizedCut(Subgraph *sg)
 }
 
 // Estimate the best k by minimum cut
-void opf_BestkMinCut(Subgraph *sg, int kmin, int kmax)
+void _opf_BestkMinCut(Subgraph *sg, int kmin, int kmax)
 {
   int k, bestk = kmax;
   float mincut = FLT_MAX, nc;
@@ -1857,6 +1843,63 @@ void opf_BestkMinCut(Subgraph *sg, int kmin, int kmax)
   opf_PDF(sg);
 
   fprintf(stderr, "Best k: %d ", sg->bestk);
+}
+
+void evaluate_k_interval(int kmin, int kmax, int step, float *min_cut, Subgraph *sg, float *maxdists, int *bestk)
+{
+  float nc;
+
+  for (int k = kmin; (k <= kmax && *min_cut != 0); k+= step)
+  {
+    fprintf(stderr, "Evaluating k=%d\n", k);
+    sg->df = maxdists[k - 1];
+    sg->bestk = k;
+
+    opf_PDFtoKmax(sg);
+    opf_OPFClusteringToKmax(sg);
+    nc = opf_NormalizedCutToKmax(sg);
+
+    if (nc < *min_cut)
+    {
+      *min_cut = nc;
+      *bestk = k;
+    }
+  }
+
+  fprintf(stderr, "\nBest k: %d\n", *bestk);
+}
+
+void opf_BestkMinCut(Subgraph *sg, int kmin, int kmax)
+{
+  float *maxdists = opf_CreateArcs2(sg, kmax);
+
+  float min_cut = FLT_MAX;
+  float nc;
+
+  int bestk = kmax;
+
+  // high-level search
+  evaluate_k_interval(kmin, kmax, 5, &min_cut, sg, maxdists, &bestk);
+
+  // adjusting boundaries for another search with step size 1
+  if (bestk + 5 <= kmax) {
+    kmax = bestk + 5;
+  }
+  if (bestk - 5 > kmin) {
+    kmin = bestk - 5;
+  }
+
+  // low-level search
+  evaluate_k_interval(kmin, kmax, 1, &min_cut, sg, maxdists, &bestk);
+
+  // cleaning up resources
+  free(maxdists);
+  opf_DestroyArcs(sg);
+
+  sg->bestk = bestk;
+
+  opf_CreateArcs(sg, sg->bestk);
+  opf_PDF(sg);
 }
 
 // Create adjacent list in subgraph: a knn graph
@@ -2165,7 +2208,7 @@ float opf_EuclDist(float *f1, float *f2, int n)
   for (i = 0; i < n; i++)
     dist += (f1[i] - f2[i]) * (f1[i] - f2[i]);
 
-  return sqrt(dist);
+  return (dist);
 }
 
 // Discretizes original distance
