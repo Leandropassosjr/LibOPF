@@ -3,8 +3,9 @@
 int main(int argc, char **argv)
 {
 	int i, n, op;
-	int kmin, kmax;
-	int amount_supervised_labels = 0;
+    int kmin, kmax;
+    int amount_supervised_labels = 0;
+    int amount_unsupervised_labels = 0;
 	float value;
 	char fileName[256];
 	FILE *f = NULL;
@@ -16,7 +17,7 @@ int main(int argc, char **argv)
 	fprintf(stdout, "\nLibOPF version 2.0 (2009)\n");
 	fprintf(stdout, "\n");
 
-	if ((argc != 6) && (argc != 5))
+	if ((argc != 6) && (argc != 7))
 	{
 		fprintf(stderr, "\nusage opf_cluster <P1> <P2> <P3> <P4> <P5> <P6>");
 		fprintf(stderr, "\nP1: unlabeled data set in the OPF file format");
@@ -30,14 +31,12 @@ int main(int argc, char **argv)
 
 	if (argc == 7)
 		opf_PrecomputedDistance = 1;
-	
-	fprintf(stdout, "\nReading data file ...\n");
+
+	fprintf(stdout, "\nReading data file ...");
 	Subgraph *g = ReadSubgraph(argv[1]);
 
 	// this field is going to be overwritten during the computation of the optimal clusters
 	amount_supervised_labels = g->nlabels;
-	fprintf(stdout, "Amount of ground truth labels: %d\n", amount_supervised_labels);
-
 
 	if (opf_PrecomputedDistance)
 	{
@@ -49,14 +48,13 @@ int main(int argc, char **argv)
 	kmin = atoi(argv[2]);
 	kmax = atoi(argv[3]);
 
-	if (kmin > kmax)
+	if (kmin > kmax || kmin < 1)
 	{
-		fprintf(stderr, "Kmin must be smaller or equal than Kmax");
+		fprintf(stderr, "Kmin must be smaller or equal than Kmax and Kmin must be larger than 0.\n");
 		exit(-1);	
 	}
 
-	fprintf(stdout, "\n Computing k* in the range [%d, %d]\n", kmin, kmax);
-	opf_BestkMinCut(g, atoi(argv[2]), atoi(argv[3])); //default kmin = 1
+	opf_BestkMinCut(g, kmin, kmax); //default kmin = 1
 
 	value = atof(argv[5]);
 	if ((value < 1) && (value > 0))
@@ -93,6 +91,9 @@ int main(int argc, char **argv)
 	fprintf(stdout, "\n\nClustering by OPF ");
 	opf_OPFClustering(g);
 	printf("num of clusters %d\n", g->nlabels);
+
+    // storing data to-be overwritten
+    amount_unsupervised_labels = g->nlabels;
 
 	/* If the training set has true labels, then create a
 	   classifier by propagating the true label of each root to
@@ -137,6 +138,12 @@ int main(int argc, char **argv)
 	fclose(f);
 	fprintf(stdout, " OK");
 	fflush(stdout);
+
+    fprintf(stderr,  "\nWriting report.");
+    f = fopen("report.txt", "w");
+    fprintf(f, "%d %d\n", amount_unsupervised_labels, g->bestk);
+    fclose(f);
+    fprintf(stderr, "\nDone.");
 
 	fprintf(stdout, "\n\nDeallocating memory ...\n");
 	DestroySubgraph(&g);
