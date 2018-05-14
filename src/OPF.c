@@ -621,6 +621,7 @@ void opf_OPFClustering(Subgraph *sg)
   Set *adj_i, *adj_j;
   char insert_i;
   int i, j;
+  int root_index;
   int p, q, l;
   float tmp, *pathval = NULL;
   RealHeap *Q = NULL;
@@ -676,13 +677,14 @@ void opf_OPFClustering(Subgraph *sg)
     sg->ordered_list_of_nodes[i] = p;
     i++;
 
-    if (sg->node[p].pred == NIL)
+    if (sg->node[p].pred == NIL) // the node becomes a prototype
     {
       pathval[p] = sg->node[p].dens;
       sg->node[p].label = l;
       l++;
     }
 
+    root_index = sg->node[p].root;
     sg->node[p].pathval = pathval[p];
     for (Saux = sg->node[p].adj; Saux != NULL; Saux = Saux->next)
     {
@@ -693,9 +695,13 @@ void opf_OPFClustering(Subgraph *sg)
         if (tmp > pathval[q])
         {
           UpdateRealHeap(Q, q, tmp);
+
           sg->node[q].pred = p;
-          sg->node[q].root = sg->node[p].root;
+          sg->node[q].root = root_index;
           sg->node[q].label = sg->node[p].label;
+
+          // making the prototype point to the conquered sample
+          InsertSet(&sg->node[root_index].children, q);
         }
       }
     }
@@ -1874,7 +1880,6 @@ void opf_BestkMinCut(Subgraph *sg, int kmin, int kmax)
   float *maxdists = opf_CreateArcs2(sg, kmax);
 
   float min_cut = FLT_MAX;
-  float nc;
 
   int bestk = kmax;
 

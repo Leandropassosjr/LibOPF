@@ -19,6 +19,7 @@ typedef struct _snode {
   float *feat;    //feature vector
   char  status;  //0 - nothing, 1 - prototype
   char  relevant; //0 - irrelevant, 1 - relevant
+  Set   *children; // List that makes prototype nodes point to all the conquered samples by it and its descendants
 
   int nplatadj; //holds the amount of adjacent nodes on plateaus
                 //It is used to optimize opf_BestkMinCut

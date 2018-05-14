@@ -1,8 +1,9 @@
 #include "OPF.h"
+#define _MAJORITY_VOTING
 
 int main(int argc, char **argv)
 {
-	int i, n, op;
+	int i, n, j, op;
     int kmin, kmax;
     int amount_supervised_labels = 0;
     int amount_unsupervised_labels = 0;
@@ -104,24 +105,82 @@ int main(int argc, char **argv)
 	   classifier, which essentially can propagate the cluster
 	   labels to new nodes in a testing set. */
 
-	if (amount_supervised_labels != 0){ // labeled training set
-	  g->nlabels = 0;
-	  for (i = 0; i < g->nnodes; i++){//propagating root labels
-	    if (g->node[i].root==i)
-	      g->node[i].label = g->node[i].truelabel;
-	    else
-	      g->node[i].label = g->node[g->node[i].root].truelabel;
-	  }
+    if (amount_supervised_labels == 0) {  // unlabeled training set
+	  for (i = 0; i < g->nnodes; i++)
+		g->node[i].truelabel = g->node[i].label + 1;
+    }
+    else {  // labeled training set
 
-	  for (i = 0; i < g->nnodes; i++){
+#ifdef _MAJORITY_VOTING
+		fprintf(stdout, "\nLabeling dataset cluster majority voting.");
+        for (i = 0; i < g->nnodes; i++) {
+            if (g->node[i].children || g->node[i].root == i) {
+				// fprintf(stdout, "\nParent: %d (label: %d)\n\t", i, g->node[i].truelabel);
+
+				// adding 1 because class labels are 1-indexed, need to make room for the last element
+				int *frequency = (int*)calloc((amount_supervised_labels + 1), sizeof(int));
+				Set *walker = g->node[i].children;
+
+                // taking into account the prototype label when computing the histogram
+                frequency[g->node[i].truelabel] += 1;
+
+				// computing label frequency on the neighborhood of the critical point
+				while (walker) {
+					j = walker->elem;
+
+					frequency[g->node[j].truelabel] += 1;
+					walker = walker->next;
+				}
+
+				// determining the label mode
+				int most_frequent = 0;
+				int top_index = 0;
+
+				for (j = 0; j < amount_supervised_labels + 1; j++) {
+					if (frequency[j] > most_frequent) {
+						most_frequent = frequency[j];
+						top_index = j;
+					}
+				}
+
+				// propagating the most common label to all samples connected to the prototype
+				walker = g->node[i].children;
+				while (walker) {
+					j = walker->elem;
+					g->node[j].label = top_index;
+					walker = walker->next;
+				}
+
+				// the prototype also receives the most common label
+				g->node[i].label = top_index;
+
+				// debugging
+                /*
+				for (j = 0; j < amount_supervised_labels + 1; j++)
+					fprintf(stdout, "%d ", frequency[j]);
+
+				fprintf(stdout, "\tMost frequent: %d (%d)", top_index, most_frequent);
+				fprintf(stdout, "\n");
+                */
+            }
+        }
+#else
+		fprintf(stdout, "\nLabeling dataset using the prototype true label.");
+	    g->nlabels = 0;
+	    for (i = 0; i < g->nnodes; i++){//propagating root labels
+	      if (g->node[i].root==i)
+	        g->node[i].label = g->node[i].truelabel;
+	      else
+	        g->node[i].label = g->node[g->node[i].root].truelabel;
+	    }
+
+	    for (i = 0; i < g->nnodes; i++){
 		  // retrieve the original number of true labels
 		  if (g->node[i].label > g->nlabels)
 			  g->nlabels = g->node[i].label;
-	  }
-	}else{ // unlabeled training set
-	  for (i = 0; i < g->nnodes; i++)
-	    g->node[i].truelabel = g->node[i].label+1;
-	}
+	    }
+#endif
+    }
 
 	fprintf(stdout, "\nWriting classifier's model file ...");
 	fflush(stdout);
