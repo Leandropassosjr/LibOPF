@@ -100,6 +100,45 @@ void WriteSubgraph(Subgraph *g, char *file)
   }
 }
 
+//creates a new sub-graph from a graph's prototypes
+Subgraph *CreateGraphFromPrototypes(Subgraph* graph) {
+
+  // creating the graph
+  int amount_prototypes = 0;
+  for (int i = 0; i < graph->nnodes; i++) {
+    if (graph->node[i].pred == NIL) {
+      amount_prototypes++;
+    }
+  }
+  Subgraph* new_graph = CreateSubgraph(amount_prototypes);
+  new_graph->nlabels = 1;
+  new_graph->nfeats = graph->nfeats;
+
+  // adding the prototypes
+  int node_index = 0;
+  for (int i = 0; i < graph->nnodes; i++) {
+    if (graph->node[i].pred == NIL) {
+
+      // cloning node from one graph to the other.
+      new_graph->node[node_index].feat = AllocFloatArray(graph->nfeats);
+      for (int j = 0; j < graph->nfeats; j++) {
+        new_graph->node[node_index].feat[j] = graph->node[i].feat[j];
+      }
+
+      // copying the prototype true label (it really doesn't matter for now) and its position,
+      // so the distance matrix can be reuse across depth levels.
+      new_graph->node[node_index].truelabel = graph->node[i].truelabel;
+      new_graph->node[node_index].label = graph->node[i].label;
+      new_graph->node[node_index].pred = graph->node[i].pred;
+      new_graph->node[node_index].position = graph->node[i].position;
+
+      node_index++;
+    }
+  }
+
+  return new_graph;
+}
+
 //read subgraph from opf format file
 Subgraph *ReadSubgraph(char *file)
 {

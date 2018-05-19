@@ -45,6 +45,7 @@ typedef struct _subgraph {
 
 /*----------- Constructor and destructor ------------------------*/
 Subgraph *CreateSubgraph(int nnodes); //Allocates nodes without features
+Subgraph *CreateGraphFromPrototypes(Subgraph* graph); //Creates a new subgraph using the prototypes of the argument graph
 void DestroySubgraph(Subgraph **sg); //Deallocates memory for subgraph
 
 void WriteSubgraph(Subgraph *g, char *file); //write subgraph to disk

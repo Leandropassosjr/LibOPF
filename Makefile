@@ -6,11 +6,12 @@ UTIL=util
 
 CC=gcc
 
-FLAGS=  -O3 -Wall
+FLAGS= -g
+#FLAGS=  -O3 -Wall
 
 INCFLAGS = -I$(INCLUDE) -I$(INCLUDE)/$(UTIL)
 
-all: libOPF opf_split opf_split_hard opf_accuracy opf_accuracy4label opf_train opf_classify opf_learn opf_distance opf_info opf_fold opf_merge opf_cluster opf_pruning statistics txt2opf opf2txt opf_check opf_normalize opfknn_train opfknn_classify opf2svm svm2opf kmeans 
+all: libOPF opf_split opf_split_hard opf_accuracy opf_accuracy4label opf_train opf_classify opf_learn opf_distance opf_info opf_fold opf_merge opf_cluster opf_pruning statistics txt2opf opf2txt opf_check opf_normalize opfknn_train opfknn_classify opf2svm svm2opf kmeans opf_deep
 
 libOPF: libOPF-build
 	echo "libOPF.a built..."
@@ -67,7 +68,10 @@ opf_merge: libOPF
 
 opf_cluster: libOPF
 	$(CC) $(FLAGS) $(INCFLAGS) src/opf_cluster.c  -L./lib -o bin/opf_cluster -lOPF -lm
-	
+
+opf_deep: libOPF
+	$(CC) $(FLAGS) $(INCFLAGS) src/opf_deep.c  -L./lib -o bin/opf_deep -lOPF -lm
+
 statistics:
 	$(CC) $(FLAGS) tools/src/statistics.c  -o tools/statistics -lm
 
