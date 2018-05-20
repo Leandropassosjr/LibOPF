@@ -165,12 +165,6 @@ int main(int argc, char **argv) {
     for (int level = 0; level < amount_levels; level++) {
         fprintf(stdout, "=============\nLevel %d of %d\n=============\n", level + 1, amount_levels);
 
-		fprintf(stdout, "Persisting data partition file\n");
-        sprintf(datafile, "data_%d.dat", level);
-
-        // write intermediate data as graph files for the label propagation phase.
-        WriteSubgraph(graph, datafile);
-
         if (amount_prototypes < min_amount_prototypes) {
             amount_levels = level;
             fprintf(stderr, "\nThe dataset contains less than %d prototypes. OPF will stop now.\n", min_amount_prototypes);
@@ -189,11 +183,17 @@ int main(int argc, char **argv) {
         opf_OPFClustering(graph);
         fprintf(stdout, "Amount of clusters %d.\n", graph->nlabels);
 
-
         fprintf(stdout, "Labelling the clusters.\n");
         label_samples(graph, amount_labels);
 
+        // writing this level dataset with its corresponding labels         
+		fprintf(stdout, "Persisting data partition file\n");
+        sprintf(datafile, "data_%d.dat", level);
+
+        WriteSubgraph(graph, datafile);
         fprintf(stdout, "Generating classifier file.\n");
+
+        // writing the classifier of this level to restore later on
         sprintf(classifier_name, "classifier_%d.opf", level);
         opf_WriteModelFile(graph, classifier_name);
 
@@ -234,7 +234,10 @@ int main(int argc, char **argv) {
         fprintf(stdout, "...\n");
         samples = ReadSubgraph(output_filename);
 
+        // if this is the top level, there's no previous level labels to propagate down
         if (level != amount_levels - 1) {
+            fprintf(stdout, "Propagating labels from %d to %d\n", level, level - 1);
+
             // the current classifier nodes were the sample nodes on the previous iteration. This snippet
             // propagates the top-level labels downwards the pyramid.
             for (int i = 0; i < classifier->nnodes; i++) {
@@ -250,6 +253,12 @@ int main(int argc, char **argv) {
 
         fprintf(stdout, "KNN classifying\n");
         opf_OPFknnClassify(classifier, samples);
+
+        // correction factor. Pushing prototype nodes down the tree.
+        for (int i = 0; i < classifier->nnodes; i++) {
+            int helper = classifier->node[i].position;
+            samples->node[helper].label = classifier->node[i].label;
+        }
 
         fprintf(stdout, "Storing labels\n");
         for (int i = 0; i < samples->nnodes; i++) {
@@ -276,7 +285,8 @@ int main(int argc, char **argv) {
 	}
 
     // writing the final level on disk
-	FILE *f = fopen("labels.out", "w");
+    sprintf(output_filename, "%s.out", argv[ARG_SAMPLES_FILE]);
+	FILE *f = fopen(output_filename, "w");
 	for (int i = 0; i < samples->nnodes; i++)
 		fprintf(f, "%d\n", samples->node[i].label);
 	fclose(f);
