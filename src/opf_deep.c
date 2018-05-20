@@ -12,7 +12,7 @@
 #define ARG_DISTANCES        10
 
 void validate(int argc, char **argv) {
-    if (argc != (ARG_DISTANCES - 1) && argc != ARG_DISTANCES) {
+    if (argc != (ARG_DISTANCES + 1) && argc != ARG_DISTANCES) {
         fprintf(stderr, "\nusage opf_cluster <P1> <P2> <P3> <P4> <P5> <P6>");
 		fprintf(stderr, "\nP1: unlabeled data set in the OPF file format");
         fprintf(stderr, "\nP2: kmin_bottom (minimum degree for the knn graph)");
@@ -145,7 +145,8 @@ int main(int argc, char **argv) {
     }
     amount_prototypes = min_amount_prototypes + 1;
 
-    if (argc == 7) {
+	// adding 1 because this checks *length*, not *index*
+    if (argc == ARG_DISTANCES + 1) {
         // loads the precomputed distances data to global variables
         fprintf(stdout, "Loading precomputed distances.\n");
         opf_PrecomputedDistance = 1;
@@ -247,7 +248,7 @@ int main(int argc, char **argv) {
 
         // propagating new labels on the bottom from prototypes to leaves
         // if the node has children, it is a prototype and must have its leaves updated
-        fprintf(stdout, "Propagating labels from prototypes to nodes");
+        fprintf(stdout, "Propagating labels from prototypes to nodes\n");
         for (int i = 0; i < clf_bottom->nnodes; i++) {
             walker = clf_bottom->node[i].children;
             while (walker) {
