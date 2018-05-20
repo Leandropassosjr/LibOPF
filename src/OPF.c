@@ -1040,6 +1040,65 @@ void opf_WriteModelFile(Subgraph *g, char *file)
   fclose(fp);
 }
 
+void opf_WriteModelFile_with_children(Subgraph *g, char *file)
+{
+  FILE *fp = NULL;
+  Set *walker = NULL;
+  int i, j;
+
+  fp = fopen(file, "wb");
+  fwrite(&g->nnodes, sizeof(int), 1, fp);
+  fwrite(&g->nlabels, sizeof(int), 1, fp);
+  fwrite(&g->nfeats, sizeof(int), 1, fp);
+
+  /* writing df */
+  fwrite(&g->df, sizeof(float), 1, fp);
+
+  /* for supervised opf based on pdf */
+  fwrite(&g->bestk, sizeof(int), 1, fp);
+  fwrite(&g->K, sizeof(float), 1, fp);
+  fwrite(&g->mindens, sizeof(float), 1, fp);
+  fwrite(&g->maxdens, sizeof(float), 1, fp);
+
+  /* writing node's information */
+  for (i = 0; i < g->nnodes; i++)
+  {
+    fwrite(&g->node[i].position, sizeof(int), 1, fp);
+    fwrite(&g->node[i].truelabel, sizeof(int), 1, fp);
+    fwrite(&g->node[i].pred, sizeof(int), 1, fp);
+    fwrite(&g->node[i].label, sizeof(int), 1, fp);
+    fwrite(&g->node[i].pathval, sizeof(float), 1, fp);
+    fwrite(&g->node[i].radius, sizeof(float), 1, fp);
+    fwrite(&g->node[i].dens, sizeof(float), 1, fp);
+
+    for (j = 0; j < g->nfeats; j++)
+      fwrite(&g->node[i].feat[j], sizeof(float), 1, fp);
+
+    // - writing the children for deep-OPF
+    j = 0;
+    walker = g->node[i].children;
+    while (walker) {
+      j++;
+      walker = walker->next;
+    }
+
+    // writing amount of children
+    fwrite(&j, sizeof(int), 1, fp);
+
+    // writing the children themselves
+    walker = g->node[i].children;
+    while (walker) {
+      fwrite(&walker->elem, sizeof(int), 1, fp);
+	  walker = walker->next;
+    }
+  }
+
+  for (i = 0; i < g->nnodes; i++)
+  fwrite(&g->ordered_list_of_nodes[i], sizeof(int), 1, fp);
+
+  fclose(fp);
+}
+
 //read subgraph from opf model file
 Subgraph *opf_ReadModelFile(char *file)
 {
@@ -1108,6 +1167,93 @@ Subgraph *opf_ReadModelFile(char *file)
 
   return g;
 }
+
+Subgraph *opf_ReadModelFile_with_children(char *file)
+{
+  Subgraph *g = NULL;
+  Set *walker = NULL;
+  FILE *fp = NULL;
+  int nnodes, i, j, k, aux;
+  char msg[256];
+
+  if ((fp = fopen(file, "rb")) == NULL)
+  {
+    sprintf(msg, "%s%s", "Unable to open file ", file);
+    Error(msg, "ReadSubGraph");
+  }
+
+  /*reading # of nodes, classes and feats*/
+  if (fread(&nnodes, sizeof(int), 1, fp) != 1)
+    Error("Could not read number of nodes", "opf_ReadModelFile");
+
+  g = CreateSubgraph(nnodes);
+  if (fread(&g->nlabels, sizeof(int), 1, fp) != 1)
+    Error("Could not read number of labels", "opf_ReadModelFile");
+  if (fread(&g->nfeats, sizeof(int), 1, fp) != 1)
+    Error("Could not read number of features", "opf_ReadModelFile");
+
+  /* for supervised opf by pdf */
+  if (fread(&g->df, sizeof(float), 1, fp) != 1)
+    Error("Could not read adjacency radius", "opf_ReadModelFile");
+  if (fread(&g->bestk, sizeof(int), 1, fp) != 1)
+    Error("Could not read the best k", "opf_ReadModelFile");
+  if (fread(&g->K, sizeof(float), 1, fp) != 1)
+    Error("Could not read K", "opf_ReadModelFile");
+  if (fread(&g->mindens, sizeof(float), 1, fp) != 1)
+    Error("Could not read minimum density", "opf_ReadModelFile");
+  if (fread(&g->maxdens, sizeof(float), 1, fp) != 1)
+    Error("Could not read maximum density", "opf_ReadModelFile");
+
+  /* reading nodes' information */
+  for (i = 0; i < g->nnodes; i++)
+  {
+    g->node[i].feat = (float *)malloc(g->nfeats * sizeof(float));
+    if (fread(&g->node[i].position, sizeof(int), 1, fp) != 1)
+      Error("Could not read node position", "opf_ReadModelFile");
+    if (fread(&g->node[i].truelabel, sizeof(int), 1, fp) != 1)
+      Error("Could not read node true label", "opf_ReadModelFile");
+    if (fread(&g->node[i].pred, sizeof(int), 1, fp) != 1)
+      Error("Could not read node predecessor", "opf_ReadModelFile");
+    if (fread(&g->node[i].label, sizeof(int), 1, fp) != 1)
+      Error("Could not read node label", "opf_ReadModelFile");
+    if (fread(&g->node[i].pathval, sizeof(float), 1, fp) != 1)
+      Error("Could not read node path value", "opf_ReadModelFile");
+    if (fread(&g->node[i].radius, sizeof(float), 1, fp) != 1)
+      Error("Could not read node adjacency radius", "opf_ReadModelFile");
+    if (fread(&g->node[i].dens, sizeof(float), 1, fp) != 1)
+      Error("Could not read node density value", "opf_ReadModelFile");
+
+    for (j = 0; j < g->nfeats; j++)
+      if (fread(&g->node[i].feat[j], sizeof(float), 1, fp) != 1)
+        Error("Could not read node features", "opf_ReadModelFile");
+
+    // reading the children
+    if (fread(&j, sizeof(int), 1, fp) != 1)
+      Error("Could not read the amount of children", "opf_ReadModelFile");
+
+	// only prototype nodes have children
+	if (j > 0) {
+		for (k = 0; k < j; k++) {
+		  if (fread(&aux, sizeof(int), 1, fp) != 1)
+			Error("Could not read children.", "opf_ReadModeFile");
+
+		  InsertSet(&walker, aux);
+		}
+		g->node[i].children = walker;
+		walker = NULL;
+	}
+  }
+
+  for (i = 0; i < g->nnodes; i++)
+    if (fread(&g->ordered_list_of_nodes[i], sizeof(int), 1, fp) != 1)
+      Error("Could not read ordered list of nodes", "opf_ReadModelFile");
+
+  fclose(fp);
+
+  return g;
+}
+
+
 
 //normalize features
 void opf_NormalizeFeatures(Subgraph *sg)

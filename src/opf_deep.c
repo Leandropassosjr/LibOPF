@@ -162,17 +162,17 @@ int main(int argc, char **argv) {
     amount_labels = graph->nlabels;
 	init_amount_samples = graph->nnodes;
 
-    for (int level = 0; level < amount_levels; level++) {
-        fprintf(stdout, "=============\nLevel %d of %d\n=============\n", level + 1, amount_levels);
+    for (int level = 1; level <= amount_levels; level++) {
+        fprintf(stdout, "=============\nLevel %d of %d\n=============\n", level, amount_levels);
 
         if (amount_prototypes < min_amount_prototypes) {
-            amount_levels = level;
+            amount_levels = level - 1;
             fprintf(stderr, "\nThe dataset contains less than %d prototypes. OPF will stop now.\n", min_amount_prototypes);
             break;
         }
 
         // level is 0-indexed, the user inputs the amount of levels.
-        if (level == amount_levels - 1) {
+        if (level == amount_levels) {
             compute_bestk(graph, atoi(argv[ARG_KMIN_TOP]), atoi(argv[ARG_KMAX_TOP]));
         }
         else {
@@ -191,11 +191,11 @@ int main(int argc, char **argv) {
         sprintf(datafile, "data_%d.dat", level);
 
         WriteSubgraph(graph, datafile);
-        fprintf(stdout, "Generating classifier file.\n");
+        fprintf(stdout, "\nGenerating classifier file.\n");
 
         // writing the classifier of this level to restore later on
         sprintf(classifier_name, "classifier_%d.opf", level);
-        opf_WriteModelFile(graph, classifier_name);
+        opf_WriteModelFile_with_children(graph, classifier_name);
 
         fprintf(stdout, "Generating output files.\n");
         amount_prototypes = count_prototypes(graph);
@@ -219,62 +219,66 @@ int main(int argc, char **argv) {
     int *label_map = AllocIntArray(init_amount_samples);
     int node_index;
 
-    for (int level = amount_levels - 1; level > 0; level--) {
-        fprintf(stdout, "================================================================\n");
-        fprintf(stdout, "Loading classifier for level %d - Propagating labels to level %d\n", level + 1, level);
-        fprintf(stdout, "================================================================\n");
+	fprintf(stdout, "\n================================================\n");
+	fprintf(stdout, "Starting to propagate labels from top to bottom.\n");
+	fprintf(stdout, "================================================\n");
+
+    Set *walker = NULL;
+    for (int level = amount_levels; level > 1; level--) {
+        fprintf(stdout, "Propagating labels from classifier %d to %d\n", level, level - 1);
 
         sprintf(classifier_name, "classifier_%d.opf", level);
-        fprintf(stdout, "%s\n", classifier_name);
-        sprintf(output_filename, "data_%d.dat", level - 1);
-        fprintf(stdout, "%s\n", output_filename);
+        Subgraph* clf_top = opf_ReadModelFile_with_children(classifier_name);
 
-        fprintf(stdout, "Loading dataset %s and classifier %s\n", output_filename, classifier_name);
-        classifier = opf_ReadModelFile(classifier_name);
-        fprintf(stdout, "...\n");
-        samples = ReadSubgraph(output_filename);
+        sprintf(classifier_name, "classifier_%d.opf", level - 1);
+        Subgraph* clf_bottom = opf_ReadModelFile_with_children(classifier_name);
 
-        // if this is the top level, there's no previous level labels to propagate down
-        if (level != amount_levels - 1) {
-            fprintf(stdout, "Propagating labels from %d to %d\n", level, level - 1);
+        // propagating labels from top to bottom prototypes
+        for (int i = 0; i < clf_top->nnodes; i++) {
+            node_index = clf_top->node[i].position;
 
-            // the current classifier nodes were the sample nodes on the previous iteration. This snippet
-            // propagates the top-level labels downwards the pyramid.
-            for (int i = 0; i < classifier->nnodes; i++) {
-                node_index = classifier->node[i].position;
-                classifier->node[i].label = label_map[node_index];
-
-                if (classifier->node[i].label == 0) {
-                    fprintf(stderr, "Trying to access node that was not labelled on the previous level!\n");
-                    exit(-1);
+            for (int j = 0; j < clf_bottom->nnodes; j++) {
+                if (clf_bottom->node[j].position == node_index) {
+                    clf_bottom->node[j].label = clf_top->node[i].label;
+                    break;
                 }
             }
         }
 
-        fprintf(stdout, "KNN classifying\n");
-        opf_OPFknnClassify(classifier, samples);
-
-        // correction factor. Pushing prototype nodes down the tree.
-        for (int i = 0; i < classifier->nnodes; i++) {
-            int helper = classifier->node[i].position;
-            samples->node[helper].label = classifier->node[i].label;
+        // propagating new labels on the bottom from prototypes to leaves
+        // if the node has children, it is a prototype and must have its leaves updated
+        fprintf(stdout, "Propagating labels from prototypes to nodes");
+        for (int i = 0; i < clf_bottom->nnodes; i++) {
+            walker = clf_bottom->node[i].children;
+            while (walker) {
+                node_index = walker->elem;
+                clf_bottom->node[node_index].label = clf_bottom->node[i].label;
+				walker = walker->next;
+            }
         }
 
-        fprintf(stdout, "Storing labels\n");
-        for (int i = 0; i < samples->nnodes; i++) {
-            node_index = samples->node[i].position;
-            label_map[node_index] = samples->node[i].label;
-        }
+        opf_WriteModelFile_with_children(clf_bottom, classifier_name);
 
-        fprintf(stdout, "\nDeallocating memory\n");
-
-		if (level > 1) {
-			DestroySubgraph(&samples);
-			DestroySubgraph(&classifier);
-		}
+        DestroySubgraph(&clf_top);
+        DestroySubgraph(&clf_bottom);
     }
 
+    fprintf(stdout, "Reading Level 1 classifier.\n");
+    classifier = opf_ReadModelFile_with_children("classifier_1.opf");
+    samples = ReadSubgraph("data_1.dat");
+
+    opf_OPFknnClassify(classifier, samples);
     fprintf(stdout, "Done.\n");
+
+	// forcibly pushing prototypes into the classification training set for the training set
+	for (int i = 0; i < classifier->nnodes; i++) {
+		node_index = classifier->node[i].position;
+
+		for (int j = 0; j < samples->nnodes; j++) {
+			if (samples->node[j].position == node_index)
+				samples->node[j].label = classifier->node[i].label;
+ 		}
+	}
 
     // deallocating memory
     if (opf_PrecomputedDistance) {
