@@ -100,7 +100,7 @@ void WriteSubgraph(Subgraph *g, char *file)
   }
 }
 
-//creates a new sub-graph from a graph's prototypes
+//creates a new sub-graph from a graph's prototypes. This method doesn't copy the node's root index.
 Subgraph *CreateGraphFromPrototypes(Subgraph* graph) {
 
   // creating the graph

@@ -38,22 +38,22 @@ void compute_bestk(Subgraph* g, int kmin, int kmax) {
     opf_BestkMinCut(g, kmin, kmax);
 }
 
-void label_samples(Subgraph *g, int amount_labels) {
+void label_clusters(Subgraph *g) {
+	for (int i = 0; i < g->nnodes; i++) {
+		g->node[i].label = g->node[i].label + 1;
+		// g->node[i].truelabel = g->node[i].label;
+	}
+}
+
+// this function is not used for now.
+void add_supervised_labels_to_clusters(Subgraph *g, int amount_labels) {
     int most_frequent;
     int top_index;
     int i, j;
 
-    if (amount_labels == 0) {
-        for (i = 0; i < g->nnodes; i++) {
-            g->node[i].label = g->node[i].label + 1;
-            g->node[i].truelabel = g->node[i].label;
-        }
-        return;
-    }
-
     fprintf(stdout, "\nLabeling dataset cluster majority voting.");
     for (i = 0; i < g->nnodes; i++) {
-        if (g->node[i].children || g->node[i].root == i) {
+        if (g->node[i].children || g->node[i].pred == NIL) {
             // adding 1 because class labels are 1-indexed, need to make room for the last element
             int *frequency = (int*)calloc((amount_labels + 1), sizeof(int));
             Set *walker = g->node[i].children;
@@ -61,7 +61,7 @@ void label_samples(Subgraph *g, int amount_labels) {
             // taking into account the prototype label when computing the histogram
             frequency[g->node[i].truelabel] += 1;
 
-            // computing label frequency on the neighborhood of the critical point
+            // computing label frequency on the neighborhood of the prototype
             while (walker) {
                 j = walker->elem;
 
@@ -104,6 +104,9 @@ int count_prototypes(Subgraph *g) {
 }
 
 void write_prototypes(Subgraph *g, char* filepath) {
+    // this only works because createGraphFromPrototypes is called before, hence
+    // *g contains _only_ prototypes at this moment.
+
     FILE* file = fopen(filepath, "w");
     if (!file) {
         fprintf(stderr, "Failed to open file to write prototypes\n");
@@ -124,7 +127,7 @@ void write_prototypes(Subgraph *g, char* filepath) {
 int main(int argc, char **argv) {
     int amount_samples_dist;
 	int init_amount_samples;
-    int amount_labels;
+    int init_amount_labels;
     int amount_levels;
     int amount_prototypes = 2;
     int min_amount_prototypes;
@@ -160,7 +163,7 @@ int main(int argc, char **argv) {
 
     fprintf(stdout, "Reading the subgraph.\n");
     Subgraph* graph = ReadSubgraph(argv[ARG_SAMPLES_FILE]);
-    amount_labels = graph->nlabels;
+    init_amount_labels = graph->nlabels;
 	init_amount_samples = graph->nnodes;
 
     for (int level = 1; level <= amount_levels; level++) {
@@ -185,7 +188,7 @@ int main(int argc, char **argv) {
         fprintf(stdout, "Amount of clusters %d.\n", graph->nlabels);
 
         fprintf(stdout, "Labelling the clusters.\n");
-        label_samples(graph, amount_labels);
+        label_clusters(graph);
 
         // writing this level dataset with its corresponding labels         
 		fprintf(stdout, "Persisting data partition file\n");
@@ -234,7 +237,13 @@ int main(int argc, char **argv) {
         sprintf(classifier_name, "classifier_%d.opf", level - 1);
         Subgraph* clf_bottom = opf_ReadModelFile_with_children(classifier_name);
 
+        // erasing prototype markers
+        for (int i = 0; i < clf_bottom->nnodes; i++) {
+            clf_bottom->node[i].pred = clf_bottom->node[i].label;
+        }
+
         // propagating labels from top to bottom prototypes
+        fprintf(stdout, "propagating...\n");
         for (int i = 0; i < clf_top->nnodes; i++) {
             node_index = clf_top->node[i].position;
 
@@ -257,6 +266,7 @@ int main(int argc, char **argv) {
 				walker = walker->next;
             }
         }
+        clf_bottom->nlabels = clf_top->nlabels;
 
         opf_WriteModelFile_with_children(clf_bottom, classifier_name);
 
@@ -266,20 +276,6 @@ int main(int argc, char **argv) {
 
     fprintf(stdout, "Reading Level 1 classifier.\n");
     classifier = opf_ReadModelFile_with_children("classifier_1.opf");
-    samples = ReadSubgraph("data_1.dat");
-
-    opf_OPFknnClassify(classifier, samples);
-    fprintf(stdout, "Done.\n");
-
-	// forcibly pushing prototypes into the classification training set for the training set
-	for (int i = 0; i < classifier->nnodes; i++) {
-		node_index = classifier->node[i].position;
-
-		for (int j = 0; j < samples->nnodes; j++) {
-			if (samples->node[j].position == node_index)
-				samples->node[j].label = classifier->node[i].label;
- 		}
-	}
 
     // deallocating memory
     if (opf_PrecomputedDistance) {
@@ -292,14 +288,13 @@ int main(int argc, char **argv) {
     // writing the final level on disk
     sprintf(output_filename, "%s.out", argv[ARG_SAMPLES_FILE]);
 	FILE *f = fopen(output_filename, "w");
-	for (int i = 0; i < samples->nnodes; i++)
-		fprintf(f, "%d\n", samples->node[i].label);
+	for (int i = 0; i < classifier->nnodes; i++)
+		fprintf(f, "%d\n", classifier->node[i].label);
 	fclose(f);
 
     opf_WriteModelFile(classifier, "classifier.opf");
-
-	DestroySubgraph(&samples);
 	DestroySubgraph(&classifier);
+    fprintf(stdout, "\nDone.\n");
 
     return 0;
 }
