@@ -237,11 +237,6 @@ int main(int argc, char **argv) {
         sprintf(classifier_name, "classifier_%d.opf", level - 1);
         Subgraph* clf_bottom = opf_ReadModelFile_with_children(classifier_name);
 
-        // erasing prototype markers
-        for (int i = 0; i < clf_bottom->nnodes; i++) {
-            clf_bottom->node[i].pred = clf_bottom->node[i].label;
-        }
-
         // propagating labels from top to bottom prototypes
         fprintf(stdout, "propagating...\n");
         for (int i = 0; i < clf_top->nnodes; i++) {
@@ -274,9 +269,6 @@ int main(int argc, char **argv) {
         DestroySubgraph(&clf_bottom);
     }
 
-    fprintf(stdout, "Reading Level 1 classifier.\n");
-    classifier = opf_ReadModelFile_with_children("classifier_1.opf");
-
     // deallocating memory
     if (opf_PrecomputedDistance) {
 		for (int i = 0; i < amount_samples_dist; i++) {
@@ -284,6 +276,10 @@ int main(int argc, char **argv) {
         }
 		free(opf_DistanceValue);
 	}
+
+    // generating the deep classifier
+    fprintf(stdout, "Reading Level 1 classifier.\n");
+    classifier = opf_ReadModelFile_with_children("classifier_1.opf");
 
     // writing the final level on disk
     sprintf(output_filename, "%s.out", argv[ARG_SAMPLES_FILE]);
